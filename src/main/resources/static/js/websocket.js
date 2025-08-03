@@ -1,8 +1,10 @@
 var wsObj = null;
 var wsUri = null;
 var userId = -1;
-var lockReconnect = false;
+
+var lockReconnect = false;//避免重复连接
 var wsCreateHandler = null;
+
 function createWebSocket() {
 	var host = window.location.host; // 带有端口号
 	userId = GetQueryString("userId");
@@ -30,13 +32,13 @@ function initWsEventHandle() {
 
 		wsObj.onclose = function (evt) {
 			writeToScreen("执行关闭事件，开始重连");
-			onWsClose(evt);
 			reconnect();
+			onWsClose(evt);
 		};
 		wsObj.onerror = function (evt) {
 			writeToScreen("执行error事件，开始重连");
-			onWsError(evt);
 			reconnect();
+			onWsError(evt);
 		};
 	} catch (e) {
 		writeToScreen("绑定事件没有成功");
@@ -63,6 +65,22 @@ function writeToScreen(message) {
 	}
 }
 
+function reconnect() {
+	if(lockReconnect) {
+		return;
+	};
+	writeToScreen("1秒后重连");
+	lockReconnect = true;
+	//没连接上会一直重连，设置延迟避免请求过多
+	wsCreateHandler && clearTimeout(wsCreateHandler); // 清除handler
+	wsCreateHandler = setTimeout(function () {
+		writeToScreen("重连..." + wsUri);
+		createWebSocket();
+		lockReconnect = false;
+		writeToScreen("重连完成");
+	}, 1000);
+}
+
 function GetQueryString(name) {
 	var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
 	var r = window.location.search.substr(1).match(reg); //获取url中"?"符后的字符串并正则匹配
@@ -72,20 +90,4 @@ function GetQueryString(name) {
 	reg = null;
 	r = null;
 	return context == null || context == "" || context == "undefined" ? "" : context;
-}
-
-function reconnect() {
-	if(lockReconnect) {
-		return;
-	};
-	writeToScreen("1秒后重连");
-	lockReconnect = true;
-	//没连接上会一直重连，设置延迟避免请求过多
-	wsCreateHandler && clearTimeout(wsCreateHandler);
-	wsCreateHandler = setTimeout(function () {
-		writeToScreen("重连..." + wsUri);
-		createWebSocket();
-		lockReconnect = false;
-		writeToScreen("重连完成");
-	}, 1000);
 }

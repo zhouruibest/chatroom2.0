@@ -35,7 +35,7 @@ public class SessionPool {
         String toUserId = params.get("toUserId").toString();
         String fromUserId = params.get("fromUserId").toString();
         String msg  = params.get("msg").toString();
-        msg = "来自" + fromUserId + "的消息" + toUserId;
+        msg = "来自" + fromUserId + "的消息" + msg;
         Session session = userIdToSession.get(toUserId);
         if (session != null) {
             session.getAsyncRemote().sendText(msg);

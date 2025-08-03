@@ -1,10 +1,8 @@
 var wsObj = null;
 var wsUri = null;
 var userId = -1;
-
-var lockReconnect = false;//避免重复连接
+var lockReconnect = false;
 var wsCreateHandler = null;
-
 function createWebSocket() {
 	var host = window.location.host; // 带有端口号
 	userId = GetQueryString("userId");
@@ -24,21 +22,23 @@ function initWsEventHandle() {
 	try {
 		wsObj.onopen = function (evt) {
 			onWsOpen(evt);
+			heartCheck.start();
 		};
 
 		wsObj.onmessage = function (evt) {
 			onWsMessage(evt);
+			heartCheck.start();
 		};
 
 		wsObj.onclose = function (evt) {
 			writeToScreen("执行关闭事件，开始重连");
-			reconnect();
 			onWsClose(evt);
+			reconnect();
 		};
 		wsObj.onerror = function (evt) {
 			writeToScreen("执行error事件，开始重连");
-			reconnect();
 			onWsError(evt);
+			reconnect();
 		};
 	} catch (e) {
 		writeToScreen("绑定事件没有成功");
@@ -65,22 +65,6 @@ function writeToScreen(message) {
 	}
 }
 
-function reconnect() {
-	if(lockReconnect) {
-		return;
-	};
-	writeToScreen("1秒后重连");
-	lockReconnect = true;
-	//没连接上会一直重连，设置延迟避免请求过多
-	wsCreateHandler && clearTimeout(wsCreateHandler); // 清除handler
-	wsCreateHandler = setTimeout(function () {
-		writeToScreen("重连..." + wsUri);
-		createWebSocket();
-		lockReconnect = false;
-		writeToScreen("重连完成");
-	}, 1000);
-}
-
 function GetQueryString(name) {
 	var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)", "i");
 	var r = window.location.search.substr(1).match(reg); //获取url中"?"符后的字符串并正则匹配
@@ -90,4 +74,68 @@ function GetQueryString(name) {
 	reg = null;
 	r = null;
 	return context == null || context == "" || context == "undefined" ? "" : context;
+}
+
+function reconnect() {
+	if(lockReconnect) {
+		return;
+	};
+	writeToScreen("1秒后重连");
+	lockReconnect = true;
+	//没连接上会一直重连，设置延迟避免请求过多
+	wsCreateHandler && clearTimeout(wsCreateHandler);
+	wsCreateHandler = setTimeout(function () {
+		writeToScreen("重连..." + wsUri);
+		createWebSocket();
+		lockReconnect = false;
+		writeToScreen("重连完成");
+	}, 1000);
+}
+
+var heartCheck = {
+	//15s之内如果没有收到后台的消息，则认为是连接断开了，需要再次连接
+	timeout: 15000,
+	timeoutObj: null,
+	serverTimeoutObj: null,
+	//重启
+	reset: function(){
+		clearTimeout(this.timeoutObj);
+		clearTimeout(this.serverTimeoutObj);
+		this.start();
+	},
+	//开启定时器
+	start: function(){
+		var self = this;
+		this.timeoutObj && clearTimeout(this.timeoutObj);
+		this.serverTimeoutObj && clearTimeout(this.serverTimeoutObj);
+
+		this.timeoutObj = setTimeout(
+
+			function(){
+
+
+				writeToScreen("发送ping到后台");
+				try
+				{
+					wsObj.send("ping");
+				}
+				catch(ee)
+				{
+					writeToScreen("发送ping异常");
+				}
+				//内嵌计时器
+				self.serverTimeoutObj = setTimeout(function(){
+					//如果onclose会执行reconnect，我们执行ws.close()就行了.如果直接执行reconnect 会触发onclose导致重连两次
+					writeToScreen("没有收到后台的数据，关闭连接");
+					//wsObj.close();
+					reconnect();
+				}, self.timeout);
+
+			},
+
+			this.timeout)
+
+
+
+	},
 }
